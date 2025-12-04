@@ -19,10 +19,10 @@ import (
 	"os"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/amazon-ec2-spot-interrupter/pkg/cli"
 	"github.com/aws/amazon-ec2-spot-interrupter/pkg/itn"
 	"github.com/aws/amazon-ec2-spot-interrupter/pkg/tui"
+	"github.com/aws/aws-sdk-go-v2/config"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
 )
@@ -42,6 +42,7 @@ type Options struct {
 	region      string
 	profile     string
 	interactive bool
+	roleName    string
 }
 
 func main() {
@@ -60,7 +61,7 @@ func main() {
 				fmt.Printf("❌ %s\n", err)
 				os.Exit(1)
 			}
-			interrupter := itn.New(cfg)
+			interrupter := itn.New(cfg, options.roleName)
 			if options.interactive {
 				p := tea.NewProgram(tui.NewModel(ctx, interrupter))
 				if err := p.Start(); err != nil {
@@ -84,5 +85,6 @@ func main() {
 	rootCmd.PersistentFlags().BoolVar(&options.interactive, "interactive", false, "interactive TUI")
 	rootCmd.PersistentFlags().StringVarP(&options.region, "region", "r", "", "the AWS Region")
 	rootCmd.PersistentFlags().StringVarP(&options.profile, "profile", "p", "", "the AWS Profile")
+	rootCmd.PersistentFlags().StringVarP(&options.roleName, "role-name", "", "aws-fis-itn", "the IAM role name to use for FIS experiments (default: aws-fis-itn)")
 	rootCmd.Execute()
 }

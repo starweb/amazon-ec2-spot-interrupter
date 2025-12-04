@@ -61,7 +61,7 @@ const (
 		]
 	}`
 	SpotITNAction  = "aws:ec2:send-spot-instance-interruptions"
-	fisRoleName    = "aws-fis-itn"
+	fisRoleName    = "aws-fis-itn" // Default role name, can be overridden
 	fisTargetLimit = 5
 )
 
@@ -71,15 +71,20 @@ type ITN struct {
 	fisClient fisAPI
 	iamClient iamAPI
 	ec2Client ec2API
+	roleName  string
 }
 
-func New(cfg aws.Config) *ITN {
+func New(cfg aws.Config, roleName string) *ITN {
+	if roleName == "" {
+		roleName = fisRoleName
+	}
 	return &ITN{
 		cfg:       cfg,
 		stsClient: sts.NewFromConfig(cfg),
 		fisClient: fis.NewFromConfig(cfg),
 		iamClient: iam.NewFromConfig(cfg),
 		ec2Client: ec2.NewFromConfig(cfg),
+		roleName:  roleName,
 	}
 }
 
@@ -297,18 +302,18 @@ func (i ITN) batchInstances(instanceIDs []string, size int) [][]string {
 
 func (i ITN) getOrCreateFISRole(ctx context.Context, accountID string) (*string, error) {
 	out, err := i.iamClient.CreateRole(ctx, &iam.CreateRoleInput{
-		RoleName:                 ptr.String(fisRoleName),
+		RoleName:                 ptr.String(i.roleName),
 		AssumeRolePolicyDocument: ptr.String(trustPolicy),
 	})
 	var alreadyExists *iamtypes.EntityAlreadyExistsException
 	if errors.As(err, &alreadyExists) {
-		return ptr.String(fmt.Sprintf("arn:aws:iam::%s:role/%s", accountID, fisRoleName)), nil
+		return ptr.String(fmt.Sprintf("arn:aws:iam::%s:role/%s", accountID, i.roleName)), nil
 	}
 	if err != nil {
 		return nil, err
 	}
 	_, err = i.iamClient.PutRolePolicy(ctx, &iam.PutRolePolicyInput{
-		PolicyName:     ptr.String(fmt.Sprintf("%s-policy", fisRoleName)),
+		PolicyName:     ptr.String(fmt.Sprintf("%s-policy", i.roleName)),
 		PolicyDocument: ptr.String(rolePolicy),
 		RoleName:       out.Role.RoleName,
 	})

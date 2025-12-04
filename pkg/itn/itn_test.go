@@ -44,6 +44,7 @@ func TestCreateInterruptions(t *testing.T) {
 		fisClient: &fisMockClient{},
 		iamClient: &iamMockClient{},
 		stsClient: &stsMockClient{},
+		roleName:  fisRoleName,
 	}
 	mockedDelay := time.Second * 5
 	output, err := itn.createInterruptions(ctx, instanceIDs, time.Duration(mockedDelay))
@@ -69,7 +70,9 @@ func TestValidate(t *testing.T) {
 	// no instances
 	ctx := context.Background()
 	instanceIDs := []string{}
-	itn := ITN{}
+	itn := ITN{
+		roleName: fisRoleName,
+	}
 	err := itn.validate(ctx, instanceIDs)
 	h.Nok(t, err)
 	h.Equals(t, "no instances specified", err.Error())
@@ -86,6 +89,7 @@ func TestGetOrCreateFISRole(t *testing.T) {
 	ctx := context.Background()
 	itn := ITN{
 		iamClient: &iamMockClient{},
+		roleName:  fisRoleName,
 	}
 	out, err := itn.getOrCreateFISRole(ctx, mockAccountID)
 	h.Equals(t, fmt.Sprintf("arn:aws:iam::%s:role/%s", mockAccountID, fisRoleName), *out)
@@ -102,10 +106,30 @@ func TestGetAccountID(t *testing.T) {
 	ctx := context.Background()
 	itn := ITN{
 		stsClient: &stsMockClient{},
+		roleName:  fisRoleName,
 	}
 	resp, err := itn.getAccountID(ctx)
 	h.Equals(t, mockAccountID, resp)
 	h.Ok(t, err)
+}
+
+func TestNewWithRoleName(t *testing.T) {
+	cfg := aws.Config{
+		Region: mockRegion,
+	}
+
+	// Test default role name when empty string is passed
+	itn := New(cfg, "")
+	h.Equals(t, fisRoleName, itn.roleName)
+
+	// Test default role name when not provided
+	itn2 := New(cfg, fisRoleName)
+	h.Equals(t, fisRoleName, itn2.roleName)
+
+	// Test custom role name override
+	customRoleName := "aws-fis-itn-custom"
+	itn3 := New(cfg, customRoleName)
+	h.Equals(t, customRoleName, itn3.roleName)
 }
 
 func TestARNToInstanceID(t *testing.T) {
